@@ -12,6 +12,6 @@ It has 5 arguments (`layers`, `n_0`, `q_0`, `ws` and `sp`).
 1. `layers`: Layer list. Unit of the thickness parameter in a layer is `cm`. 
    Please refer [example.ipynb](https://github.com/phykn/smatrix/blob/main/example.ipynb) for the details.
 2. `n_0`: Refractive index of the top layer.
-3. `q_0`: Incidence angle of the top layer. (0 <= `q_0` < 90, unit:degrees)
+3. `q_0`: Incidence angle of the top layer. (0 <= `q_0` < 90, unit: degrees)
 4. `ws`: Wavernumber (unit: cm-1)
 5. `sp`: Polarization (`'s'` or `'p'`) 
