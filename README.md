@@ -16,10 +16,10 @@ pip install smmo
 
 `layer`
 
--   `n`: refractive index of the layer
--   `k`: absorption coefficient of the layer
--   `thickness`: thickness of the layer. The unit is centimeter (cm).
--   `coherence`: coherence in the layer. `True` is coherence and `False` is incoherence.
+-   `n`: Refractive index of the layer
+-   `k`: Absorption coefficient of the layer
+-   `thickness`: Thickness of the layer. The unit is centimeter (cm).
+-   `coherence`: Coherence in the layer. `True` is coherence and `False` is incoherence.
 
 ### Example
 
