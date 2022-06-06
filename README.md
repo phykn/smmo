@@ -6,6 +6,54 @@ Scattering-Matrix method implementation for python.
 pip install smmo
 ```
 
+### Example
+
+```python
+import numpy as np
+from smmo import make_config, make_layer, SMMO
+
+config = make_config(
+    wavenumber=np.arange(0, 10000, step=1000),
+    incidence=0,
+    polarization="s"
+)
+
+layers = [
+    make_layer(
+        n=np.full(10, 1),
+        k=np.full(10, 0),
+        thickness=0,
+        coherence=False
+    ),
+    make_layer(
+        n=np.full(10, 1.5),
+        k=np.full(10, 0),
+        thickness=0.01,
+        coherence=True
+    ),
+    make_layer(
+        n=np.full(10, 2),
+        k=np.full(10, 0),
+        thickness=0.05,
+        coherence=False
+    ),
+    make_layer(
+        n=np.full(10, 1),
+        k=np.full(10, 0),
+        thickness=0,
+        coherence=False
+    )
+]
+
+output = SMMO(layers, config)()
+```
+
+```python
+>>> print(output)
+{'T': array([0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8]),
+ 'R': array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2])}
+```
+
 ### Citation
 
 ```python
