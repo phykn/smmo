@@ -227,7 +227,6 @@ class SMMO:
             else:
                 blocks.append(block)
 
-        # Initialize
         T_12_block = []
         R_12_block = []
         T_21_block = []
@@ -264,4 +263,4 @@ class SMMO:
 
         T_total = T_12_total[1]
         R_total = R_12_total[1]
-        return {'T': T_total, 'R': R_total}
+        return {"T": T_total, "R": R_total}
