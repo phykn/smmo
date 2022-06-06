@@ -1,4 +1,4 @@
-Scattering-Matrix method implementation for python.
+Scattering-Matrix method[1-3] implementation for python.
 
 ### Installation
 
