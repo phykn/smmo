@@ -1,4 +1,4 @@
-SMMO (Scattering-Matrix method for Multilayer Optics) is scattering matrix method [1-3] implementation for python.
+SMMO (_S_cattering-Matrix method for Multilayer Optics) is scattering matrix method [1-3] implementation for python.
 
 ### Installation
 
