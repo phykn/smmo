@@ -63,7 +63,8 @@ output = SMMO(layers, config)()
   journal={Journal of the Korean Physical Society},
   pages={1--5},
   year={2022},
-  publisher={Springer}
+  publisher={Springer},
+  doi={https://doi.org/10.1007/s40042-022-00436-8}
 }
 ```
 
