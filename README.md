@@ -71,7 +71,7 @@ output = SMMO(layers, config)()
 
 ### Citation
 
-```python
+```html
 @article{lee2022machine,
   title={Machine learning analysis of broadband optical reflectivity of semiconductor thin film},
   author={Lee, Byeoungju and Yu, Kwangnam and Jeon, Jiwon and Choi, EJ},
