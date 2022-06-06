@@ -10,16 +10,16 @@ pip install smmo
 
 config
 
--   wavenumber: The wavenumber of refractive index (or absorption coefficient) of layers. The unit is inverse centimeter (cm<sup>-1</sup>).
--   incidence: Angle of incidence ($0\leqq\theta<90$). The unit is arc degree.
--   polarization: Polarization of the incidence light. "s" is s-polarization and "p" is p-polarization.
+-   `wavenumber`: The wavenumber of refractive index (or absorption coefficient) of layers. The unit is inverse centimeter (cm<sup>-1</sup>).
+-   `incidence`: Angle of incidence ($0\leqq\theta<90$). The unit is arc degree.
+-   `polarization`: Polarization of the incidence light. "s" is s-polarization and "p" is p-polarization.
 
 layer
 
--   n: [refractive index]("https://en.wikipedia.org/wiki/Refractive_index")
--   k: [absorption coefficient]("https://en.wikipedia.org/wiki/Refractive_index")
--   thickness: thickness of the layer. The unit is centimeter (cm).
--   coherence: coherence in the layer. `True` is coherence and `False` is incoherence.
+-   `n`: refractive index of the layer
+-   `k`: absorption coefficient of the layer
+-   `thickness`: thickness of the layer. The unit is centimeter (cm).
+-   `coherence`: coherence in the layer. `True` is coherence and `False` is incoherence.
 
 ### Example
 
