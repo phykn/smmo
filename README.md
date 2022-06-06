@@ -1,17 +1,23 @@
-### Scattering-Matrix method for multilayer optics
-Transfer-matrix method(TMM) is a simple, accurate and fast method used to understand the propagation of electromagnetic waves in a multilayer structure. However, TMM is numerically unstable when a thick layer in the structure has high absorption because exponential parts cause overflow. To overcome this problem, scattering-matrix method(SMM) was presented ([PRB-1988](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.38.9945), [JOSAA-1988](https://www.osapublishing.org/josaa/abstract.cfm?uri=josaa-5-11-1863), [SPIE-2010](https://spie.org/Publications/Proceedings/Paper/10.1117/12.862566?SSO=1)) that is computationally stable method has no exponentially growing parts.
+Scattering-Matrix method implementation for python.
 
-### How to use
+### Installation
 ```python
-import get_TR from smatrix
+pip install smmo
 ```
-Import and use `get_TR` from `smatrix.py`. 
 
-`get_TR` has 5 arguments (`layers`, `n_0`, `q_0`, `ws` and `sp`).
+### Citation
+```python
+@article{lee2022machine,
+  title={Machine learning analysis of broadband optical reflectivity of semiconductor thin film},
+  author={Lee, Byeoungju and Yu, Kwangnam and Jeon, Jiwon and Choi, EJ},
+  journal={Journal of the Korean Physical Society},
+  pages={1--5},
+  year={2022},
+  publisher={Springer}
+}
+```
 
-1. `layers`: Layer list. Unit of the thickness parameter in a layer is `cm`. 
-   Please refer [example.ipynb](https://github.com/phykn/smatrix/blob/main/example.ipynb) for the details.
-2. `n_0`: Refractive index of the top layer.
-3. `q_0`: Incidence angle of the top layer. (0 <= `q_0` < 90, unit: degrees)
-4. `ws`: Wavernumber (unit: cm-1)
-5. `sp`: Polarization (`'s'` or `'p'`) 
+### Reference
+[[1](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.38.9945)] Ko, D. Yuk Kei, and J. C. Inkson., Physical Review B 38.14 9945 (1988)  
+[[2](https://www.osapublishing.org/josaa/abstract.cfm?uri=josaa-5-11-1863)] Ko, D. Yuk Kei, and J. R. Sambles., JOSA A 5.11 1863-1866 (1988)  
+[[3](https://spie.org/Publications/Proceedings/Paper/10.1117/12.862566?SSO=1)] Dyakov, Sergey A., et al., International Conference on Micro-and Nano-Electronics 2009 (2010)
