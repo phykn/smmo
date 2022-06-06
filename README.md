@@ -1,10 +1,25 @@
-Scattering-Matrix method [1-3] implementation for python.
+Scattering-Matrix method implementation for python.
 
 ### Installation
 
 ```python
 pip install smmo
 ```
+
+### Parameters
+
+config
+
+-   wavenumber: The wavenumber of refractive index (or absorption coefficient) of layers. The unit is inverse centimeter (cm<sup>-1</sup>).
+-   incidence: Angle of incidence ($0\leqq\theta<90$). The unit is arc degree.
+-   polarization: Polarization of the incidence light. "s" is s-polarization and "p" is p-polarization.
+
+layer
+
+-   n: [refractive index]("https://en.wikipedia.org/wiki/Refractive_index")
+-   k: [absorption coefficient]("https://en.wikipedia.org/wiki/Refractive_index")
+-   thickness: thickness of the layer. The unit is centimeter (cm).
+-   coherence: coherence in the layer. `True` is coherence and `False` is incoherence.
 
 ### Example
 
@@ -63,8 +78,7 @@ output = SMMO(layers, config)()
   journal={Journal of the Korean Physical Society},
   pages={1--5},
   year={2022},
-  publisher={Springer},
-  doi={https://doi.org/10.1007/s40042-022-00436-8}
+  publisher={Springer}
 }
 ```
 
