@@ -91,8 +91,7 @@ class SMMO:
         Args:
             wavenumbers: unit is cm-1 (float)
             n_i: refractive index of ith layer (complex)
-            cos_qi: cosine values of ith layer (complex)
-            
+            cos_qi: cosine values of ith layer (complex)            
         Return:
             wavevector in z direction (complex)
         '''
