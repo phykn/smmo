@@ -12,7 +12,7 @@ pip install smmo
 
 -   `wavenumber`: The wavenumber of refractive index (or absorption coefficient) of layers. The unit is inverse centimeter (cm<sup>-1</sup>).
 -   `incidence`: Angle of incidence ($0\leqq\theta<90$). The unit is arc degree.
--   `polarization`: Polarization of the incidence light. `"s"` is s-polarization and `"p"` is p-polarization.
+-   `polarization`: Polarization of the incidence light. `"s"`: s-polarization and `"p"`: p-polarization.
 
 `layer`
 
