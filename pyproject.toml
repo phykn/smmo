@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smmo"
+version = "0.0.4"
+authors = [
+  { name="Kwangnam Yu", email="phykn.kr@gmail.com" },
+]
+description = "Scattering-Matrix method for multilayer optics"
+readme = "README.md"
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+]
+
+[project.urls]
+Homepage = "https://github.com/phykn/smmo"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["smmo*"]
