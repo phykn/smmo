@@ -1,4 +1,9 @@
+import sys
+from pathlib import Path
+
 import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from smmo import SMMO, make_config, make_layer
 
@@ -14,7 +19,11 @@ def run_test(
     res = SMMO(layers, cfg)()
     t_avg = np.mean(res["T"])
     r_avg = np.mean(res["R"])
-    print(f"[{name}] T_avg: {t_avg:.4f}, R_avg: {r_avg:.4f}, Sum: {t_avg + r_avg:.4f}")
+    a_avg = np.mean(res["A"])
+    print(
+        f"[{name}] T_avg: {t_avg:.4f}, R_avg: {r_avg:.4f}, "
+        f"A_avg: {a_avg:.4f}, Sum: {t_avg + r_avg + a_avg:.4f}"
+    )
 
 
 def test_vacuum() -> None:

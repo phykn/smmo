@@ -10,8 +10,8 @@ def make_config(
 ) -> dict[str, Any]:
     return {
         "w": wavenumber,
-        "q": incidence,
-        "p": polarization,
+        "theta": incidence,
+        "pol": polarization,
     }
 
 
@@ -19,11 +19,11 @@ def make_layer(
     n: np.ndarray,
     k: np.ndarray,
     thickness: float,
-    coherence: bool,
+    coherent: bool,
 ) -> dict[str, Any]:
     return {
         "n": n,
         "k": k,
         "thickness": thickness,
-        "coherence": coherence,
+        "coherent": coherent,
     }
