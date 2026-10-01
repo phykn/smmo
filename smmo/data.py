@@ -1,13 +1,27 @@
+from typing import TypedDict
+
 import numpy as np
 
-from typing import Any
+
+class Config(TypedDict):
+    w: np.ndarray
+    theta: float
+    pol: str
+
+
+class Layer(TypedDict):
+    n: np.ndarray
+    k: np.ndarray
+    thickness: float
+    coherent: bool
 
 
 def make_config(
     wavenumber: np.ndarray,
     incidence: float,
     polarization: str,
-) -> dict[str, Any]:
+) -> Config:
+    """Describe light with wavenumbers in cm^-1 and incidence in degrees."""
     return {
         "w": wavenumber,
         "theta": incidence,
@@ -20,7 +34,8 @@ def make_layer(
     k: np.ndarray,
     thickness: float,
     coherent: bool,
-) -> dict[str, Any]:
+) -> Layer:
+    """Describe a material with index n + i k and thickness in cm."""
     return {
         "n": n,
         "k": k,

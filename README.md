@@ -122,7 +122,9 @@ The wavenumber array controls the length of every output array. For example, if 
 
 The optical index used by the code is `N = n + i k`. If `k` is zero, the material itself has no absorption. If `k` is positive, some light can be absorbed inside the layer.
 
-`n` and `k` should be arrays with the same length as `wavenumber`. Constant materials can be written with `np.full_like(w, value)` and `np.zeros_like(w)`.
+`wavenumber`, `n`, and `k` must be nonempty one-dimensional arrays with the same shape. Constant materials can be written with `np.full_like(w, value)` and `np.zeros_like(w)`.
+
+`SMMO` raises `ValueError` for mismatched spectral shapes, fewer than two layers, an incidence outside `0 <= incidence < 90`, or a polarization other than `"s"` or `"p"`. Validation also runs under `python -O`.
 
 ## Coherent vs Incoherent Layers
 
@@ -145,6 +147,8 @@ For lossless stacks, `T + R = 1` and `A = 0`.
 For lossy stacks, `T + R < 1` and the missing part is absorption, so `T + R + A = 1`.
 
 `T` is not just `abs(t)^2`. When the entrance and exit media are different, the transmitted amplitude must be corrected by the optical flux factor. SMMO applies that correction internally, so `T` is the physical power transmittance.
+
+The usual power interpretation assumes a lossless entrance medium. `T` measures power entering the final medium; absorption after that boundary is not included in `A`. Model an absorbing sample as a finite layer between boundary media when its absorption is the quantity of interest.
 
 ## Examples
 
@@ -214,6 +218,12 @@ Remember that layer order is physical. `[air, film, glass]` and `[glass, film, a
 
 ## Tests
 
+For development, install the package and test runner in your environment:
+
+```bash
+python -m pip install -e . pytest
+```
+
 Run the test suite with:
 
 ```bash
@@ -225,6 +235,10 @@ Run the executable examples with:
 ```bash
 python tests/test_examples.py
 ```
+
+The suite checks Fresnel interfaces, coherent and incoherent films, mixed stacks, total internal reflection, critical-angle propagation, opaque layers, input validation, and repeated calls without input mutation.
+
+The public API is exported from `smmo/__init__.py`. `smmo/data.py` owns the configuration and layer dictionaries. `smmo/smatrix.py` owns validation and calculation: `SMMO.__call__` groups coherent and incoherent blocks and combines their power coefficients; `get_smatrix_components` computes coherent amplitudes. Both paths use the same block composition in `_cascade`.
 
 ## Citation
 

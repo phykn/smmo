@@ -1,17 +1,15 @@
 import numpy as np
 
-from typing import Any
+from .data import Config, Layer
 
 
 class SMMO:
-    def __init__(
-        self,
-        layers: list[dict[str, Any]],
-        config: dict[str, Any],
-    ) -> None:
-        self.check_data(layers, config)
+    """Calculate spectral power for a stack ordered from entrance to exit."""
+
+    def __init__(self, layers: list[Layer], config: Config) -> None:
         self.check_layers(layers)
         self.check_config(config)
+        self.check_data(layers, config)
 
         self.layers = layers
         self.n_0 = layers[0]["n"] + 1j * layers[0]["k"]
@@ -19,54 +17,182 @@ class SMMO:
         self.theta0 = config["theta"]
         self.pol = config["pol"]
 
-    @staticmethod
-    def check_data(
-        layers: list[dict[str, Any]],
-        config: dict[str, Any],
-    ) -> bool:
-        lengths = [len(config["w"])]
+    def __call__(self) -> dict[str, np.ndarray]:
+        blocks = self.split_blocks(self.expand_layers(self.layers))
+        t_12 = np.ones(len(self.wn))
+        t_21 = np.ones(len(self.wn))
+        r_12 = np.zeros(len(self.wn))
+        r_21 = np.zeros(len(self.wn))
 
+        for block in blocks:
+            t_12, r_12, t_21, r_21 = self._cascade(
+                (t_12, r_12, t_21, r_21), self.get_tr_matrix_components(block)
+            )
+
+        absorption = 1 - t_12 - r_12
+        absorption = np.where(np.isclose(absorption, 0.0, atol=1e-12), 0.0, absorption)
+        return {"T": t_12, "R": r_12, "A": absorption}
+
+    @staticmethod
+    def _cascade(
+        left: tuple[np.ndarray, ...], right: tuple[np.ndarray, ...]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        t_f, r_f, t_b, r_b = left
+        u_f, v_f, u_b, v_b = right
+        norm = 1 - r_b * v_f
+        # Perfect reflectors disconnect the path between the two blocks.
+        coupling = np.divide(1, norm, out=np.zeros_like(norm), where=norm != 0)
+        return (
+            t_f * u_f * coupling,
+            r_f + t_f * t_b * v_f * coupling,
+            t_b * u_b * coupling,
+            v_b + u_f * u_b * r_b * coupling,
+        )
+
+    @staticmethod
+    def check_layers(layers: list[Layer]) -> bool:
+        if len(layers) < 2:
+            raise ValueError("The minimum number of layers is 2.")
+        return True
+
+    @staticmethod
+    def check_config(config: Config) -> bool:
+        if not 0 <= config["theta"] < 90:
+            raise ValueError("theta must be set between 0 and 90.")
+        if config["pol"] not in ("s", "p"):
+            raise ValueError('polarization not in ["s", "p"]')
+        return True
+
+    @staticmethod
+    def check_data(layers: list[Layer], config: Config) -> bool:
+        w = config["w"]
+        if np.ndim(w) != 1 or len(w) == 0:
+            raise ValueError("wavenumber must be a nonempty one-dimensional array")
         for layer in layers:
-            lengths.append(len(layer["n"]))
-            lengths.append(len(layer["k"]))
-
-        assert len(np.unique(lengths)) == 1, "size mismatch"
-
+            for key in ("n", "k"):
+                if np.ndim(layer[key]) != 1 or len(layer[key]) != len(w):
+                    raise ValueError("size mismatch: n and k must have the same shape as wavenumber")
         return True
 
     @staticmethod
-    def check_layers(
-        layers: list[dict[str, Any]]
-    ) -> bool:
-        assert len(layers) > 1, "The minimum number of layers is 2."
-
-        return True
-
-    @staticmethod
-    def check_config(
-        config: dict[str, Any]
-    ) -> bool:
-        assert 0 <= config["theta"] < 90, "theta must be set between 0 and 90."
-        assert config["pol"] in ["s", "p"], 'polarization not in ["s", "p"]'
-
-        return True
-
-    @staticmethod
-    def get_cos_qi(
-        n_0: np.ndarray,
-        n_i: np.ndarray,
-        theta0: float,
-    ) -> np.ndarray:
-        theta0_arr = np.full(len(n_0), complex(theta0 * np.pi / 180, 0), dtype=complex)
-
-        return np.sqrt(1 - np.square((n_0 * np.sin(theta0_arr) / n_i)))
+    def expand_layers(layers: list[Layer]) -> list[Layer]:
+        """Surround each incoherent layer with zero-thickness coherent boundaries."""
+        expanded = []
+        for layer in layers:
+            if layer["coherent"]:
+                expanded.append(layer)
+            else:
+                boundary: Layer = {
+                    "n": layer["n"],
+                    "k": layer["k"],
+                    "thickness": 0.0,
+                    "coherent": True,
+                }
+                expanded.extend([boundary, layer, boundary])
+        return expanded
 
     @staticmethod
-    def get_kz(
-        wavenumbers: np.ndarray,
-        n_i: np.ndarray,
-        cos_qi: np.ndarray,
-    ) -> np.ndarray:
+    def split_blocks(layers: list[Layer]) -> list[list[Layer]]:
+        blocks = []
+        block = layers[:1]
+        for layer in layers[1:]:
+            if block[-1]["coherent"] == layer["coherent"]:
+                block.append(layer)
+            else:
+                blocks.append(block)
+                block = [layer]
+        blocks.append(block)
+        return blocks
+
+    def get_tr_matrix_components(
+        self, layers: list[Layer]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        s_11, _, s_21, _ = self.get_smatrix_components(layers)
+        t_12 = self.get_flux_factor(layers) * np.abs(s_11) ** 2
+        r_12 = np.abs(s_21) ** 2
+
+        reverse = layers[::-1]
+        s_11, _, s_21, _ = self.get_smatrix_components(reverse)
+        t_21 = self.get_flux_factor(reverse) * np.abs(s_11) ** 2
+        r_21 = np.abs(s_21) ** 2
+        return t_12, r_12, t_21, r_21
+
+    def get_flux_factor(self, layers: list[Layer]) -> np.ndarray:
+        n_i = layers[0]["n"] + 1j * layers[0]["k"]
+        n_j = layers[-1]["n"] + 1j * layers[-1]["k"]
+        cos_i = self.get_cos_qi(self.n_0, n_i, self.theta0)
+        cos_j = self.get_cos_qi(self.n_0, n_j, self.theta0)
+        if self.pol == "p":
+            cos_i, cos_j = np.conj(cos_i), np.conj(cos_j)
+        flux_i = np.real(n_i * cos_i)
+        flux_j = np.real(n_j * cos_j)
+
+        # An evanescent port carries no normal power; equal zero-flux ports
+        # retain the unit factor needed for propagation within one medium.
+        factor = np.where(flux_j == 0, 1.0, 0.0)
+        return np.divide(flux_j, flux_i, out=factor, where=flux_i != 0)
+
+    def get_smatrix_components(
+        self, layers: list[Layer]
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        n = np.array([layer["n"] + 1j * layer["k"] for layer in layers])
+        cos_q = self.get_cos_qi(self.n_0, n, self.theta0)
+        thickness = np.array([layer["thickness"] for layer in layers])
+        phase = np.exp(1j * self.get_kz(self.wn, n, cos_q) * thickness[:, None])
+        zero = np.zeros(len(self.wn), dtype=complex)
+        if len(layers) == 1:
+            return phase[0], zero.copy(), zero, np.ones(len(self.wn), dtype=complex)
+
+        q = n * cos_q if self.pol == "s" else cos_q / n
+        cos_0 = self.get_cos_qi(self.n_0, self.n_0, self.theta0)
+        q_0 = self.n_0 * cos_0 if self.pol == "s" else cos_0 / self.n_0
+        ref = np.where(q[0] != 0, q[0], q_0)
+        total = self._interface(q[0], ref)
+
+        # Embed each propagation step in the same nonzero-admittance medium.
+        # This avoids singular interfaces at an internal layer's critical angle.
+        for i in range(1, len(layers)):
+            coef = 2 * np.pi * self.wn * thickness[i]
+            if self.pol == "p":
+                coef = coef * n[i] ** 2
+            delta = coef * q[i]
+            change = np.expm1(2j * delta)
+            a = 1 + change / 2
+            b = np.divide(-change / 2, q[i], out=-1j * coef.astype(complex), where=q[i] != 0)
+            c = -change * q[i] / 2
+            norm = 2 * ref * a + ref ** 2 * b + c
+            t = 2 * ref * phase[i] / norm
+            r = (ref ** 2 * b - c) / norm
+            total = self._cascade(total, (t, r, t, r))
+
+        t_f, r_f, t_b, r_b = self._cascade(total, self._interface(ref, q[-1]))
+        uniform = (q[0] == 0) & np.all(n == n[0], axis=0)
+        propagation = np.prod(phase[1:], axis=0)
+        t_f = np.where(uniform, propagation, t_f)
+        t_b = np.where(uniform, propagation, t_b)
+        r_f = np.where(uniform, 0.0, r_f)
+        r_b = np.where(uniform, 0.0, r_b)
+        if self.pol == "p":
+            t_f = t_f * n[0] / n[-1]
+            t_b = t_b * n[-1] / n[0]
+
+        # Preserve the entrance-phase convention of the amplitude components.
+        return t_f * phase[0], r_b, r_f * phase[0], t_b
+
+    @staticmethod
+    def _interface(
+        q_i: np.ndarray, q_j: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        norm = q_i + q_j
+        r = (q_i - q_j) / norm
+        return 2 * q_i / norm, r, 2 * q_j / norm, -r
+
+    @staticmethod
+    def get_cos_qi(n_0: np.ndarray, n_i: np.ndarray, theta0: float) -> np.ndarray:
+        return np.sqrt(1 - (n_0 * np.sin(np.deg2rad(theta0)) / n_i) ** 2 + 0j)
+
+    @staticmethod
+    def get_kz(wavenumbers: np.ndarray, n_i: np.ndarray, cos_qi: np.ndarray) -> np.ndarray:
         return 2 * np.pi * n_i * wavenumbers * cos_qi
 
     @staticmethod
@@ -78,173 +204,15 @@ class SMMO:
         coeff: str = "r",
         pol: str = "s",
     ) -> np.ndarray:
-        if coeff == "r" and pol == "s":
-            return (n_i * cos_qi - n_j * cos_qj) / (n_i * cos_qi + n_j * cos_qj)
-        if coeff == "r" and pol == "p":
-            return (n_j * cos_qi - n_i * cos_qj) / (n_j * cos_qi + n_i * cos_qj)
-        if coeff == "t" and pol == "s":
-            return 2 * n_i * cos_qi / (n_i * cos_qi + n_j * cos_qj)
-        if coeff == "t" and pol == "p":
-            return 2 * n_i * cos_qi / (n_j * cos_qi + n_i * cos_qj)
+        if pol == "s":
+            a, b = n_i * cos_qi, n_j * cos_qj
+        elif pol == "p":
+            a, b = n_j * cos_qi, n_i * cos_qj
+        else:
+            raise ValueError("Invalid parameters for reflection/transmission coefficient calculation")
 
+        if coeff == "r":
+            return (a - b) / (a + b)
+        if coeff == "t":
+            return 2 * n_i * cos_qi / (a + b)
         raise ValueError("Invalid parameters for reflection/transmission coefficient calculation")
-
-    def get_flux_factor(
-        self,
-        layers: list[dict[str, Any]],
-    ) -> np.ndarray:
-        n_i = layers[0]["n"] + 1j * layers[0]["k"]
-        n_j = layers[-1]["n"] + 1j * layers[-1]["k"]
-        cos_qi = self.get_cos_qi(self.n_0, n_i, self.theta0)
-        cos_qj = self.get_cos_qi(self.n_0, n_j, self.theta0)
-
-        return np.real(n_j * cos_qj) / np.real(n_i * cos_qi)
-
-    def get_smatrix_components(
-        self,
-        layers: list[dict[str, Any]],
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        layer_f = layers[-1].copy()
-        layer_f["thickness"] = 0.0
-        layer_f["coherent"] = True
-        layers = [*layers, layer_f]
-
-        num_layer = len(layers)
-        num_data = len(self.wn)
-
-        n = np.zeros((num_layer, num_data), dtype=complex)
-        cos_q = np.zeros((num_layer, num_data), dtype=complex)
-        phase = np.zeros((num_layer, num_data), dtype=complex)
-
-        for i, layer in enumerate(layers):
-            n[i] = layer["n"] + 1j * layer["k"]
-            cos_q[i] = self.get_cos_qi(self.n_0, n[i], self.theta0)
-            phase[i] = np.exp(
-                1j * self.get_kz(self.wn, n[i], cos_q[i]) * layer["thickness"]
-            )
-
-        s_11 = np.full(num_data, 1, dtype=complex)
-        s_12 = np.full(num_data, 0, dtype=complex)
-        s_21 = np.full(num_data, 0, dtype=complex)
-        s_22 = np.full(num_data, 1, dtype=complex)
-
-        for i in range(num_layer - 1):
-            j = i + 1
-            t = self.get_fresnel_coeff_ij(n[i], n[j], cos_q[i], cos_q[j], coeff="t", pol=self.pol)
-            r = self.get_fresnel_coeff_ij(n[i], n[j], cos_q[i], cos_q[j], coeff="r", pol=self.pol)
-
-            i_11 = 1 / t
-            i_12 = r / t
-            i_21 = i_12
-            i_22 = i_11
-
-            s_11 = phase[i] * s_11 / (i_11 - phase[i] * s_12 * i_21)
-            s_12 = ((phase[i] * s_12 * i_22 - i_12) * phase[j]) / (i_11 - phase[i] * s_12 * i_21)
-            s_21 = s_22 * i_21 * s_11 + s_21
-            s_22 = s_22 * i_21 * s_12 + s_22 * i_22 * phase[j]
-
-        return s_11, s_12, s_21, s_22
-
-    def get_tr_matrix_components(
-        self,
-        layers: list[dict[str, Any]],
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        s_11, _, s_21, _ = self.get_smatrix_components(layers)
-        t_12 = self.get_flux_factor(layers) * (s_11 * np.conjugate(s_11)).real
-        r_12 = (s_21 * np.conjugate(s_21)).real
-
-        s_11_r, _, s_21_r, _ = self.get_smatrix_components(layers[::-1])
-        t_21 = self.get_flux_factor(layers[::-1]) * (s_11_r * np.conjugate(s_11_r)).real
-        r_21 = (s_21_r * np.conjugate(s_21_r)).real
-
-        return t_12, r_12, t_21, r_21
-
-    @staticmethod
-    def expand_layers(
-        layers: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
-        pseudo_layers = []
-
-        for layer in layers:
-            if layer["coherent"]:
-                pseudo_layers.append(layer)
-            else:
-                pseudo_layer = {
-                    "n": layer["n"],
-                    "k": layer["k"],
-                    "thickness": 0.0,
-                    "coherent": True,
-                }
-                pseudo_layers.append(pseudo_layer)
-                pseudo_layers.append(layer)
-                pseudo_layers.append(pseudo_layer)
-
-        return pseudo_layers
-
-    @staticmethod
-    def split_blocks(
-        layers: list[dict[str, Any]]
-    ) -> list[list[dict[str, Any]]]:
-        blocks = []
-        block = layers[0:1]
-
-        for layer in layers[1:]:
-            if block[-1]["coherent"] == layer["coherent"]:
-                block.append(layer)
-            else:
-                blocks.append(block)
-                block = [layer]
-
-        blocks.append(block)
-
-        return blocks
-
-    def __call__(
-        self
-    ) -> dict[str, np.ndarray]:
-        pseudo_layers = self.expand_layers(self.layers)
-        blocks = self.split_blocks(pseudo_layers)
-
-        t_12_block = []
-        r_12_block = []
-        t_21_block = []
-        r_21_block = []
-
-        num_data = len(self.wn)
-        t_12_total = np.full((2, num_data), 1, dtype=float)
-        t_21_total = np.full((2, num_data), 1, dtype=float)
-        r_12_total = np.full((2, num_data), 0, dtype=float)
-        r_21_total = np.full((2, num_data), 0, dtype=float)
-
-        for b in blocks:
-            tr = self.get_tr_matrix_components(b)
-            t_12_block.append(tr[0])
-            r_12_block.append(tr[1])
-            t_21_block.append(tr[2])
-            r_21_block.append(tr[3])
-
-        t_12_arr = np.array(t_12_block)
-        r_12_arr = np.array(r_12_block)
-        t_21_arr = np.array(t_21_block)
-        r_21_arr = np.array(r_21_block)
-
-        for i in range(len(blocks)):
-            norm = 1 - r_21_total[0] * r_12_arr[i]
-            t_12_total[1] = t_12_total[0] * t_12_arr[i] / norm
-            r_12_total[1] = r_12_total[0] + t_12_total[0] * t_21_total[0] * r_12_arr[i] / norm
-            t_21_total[1] = t_21_total[0] * t_21_arr[i] / norm
-            r_21_total[1] = r_21_arr[i] + t_12_arr[i] * t_21_arr[i] * r_21_total[0] / norm
-
-            t_12_total[0] = t_12_total[1]
-            r_12_total[0] = r_12_total[1]
-            t_21_total[0] = t_21_total[1]
-            r_21_total[0] = r_21_total[1]
-
-        absorption = 1 - t_12_total[1] - r_12_total[1]
-        absorption = np.where(np.isclose(absorption, 0.0, atol=1e-12), 0.0, absorption)
-
-        return {
-            "T": t_12_total[1],
-            "R": r_12_total[1],
-            "A": absorption,
-        }
