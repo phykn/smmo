@@ -141,6 +141,54 @@ def test_lossy_incoherent_slab_matches_intensity_sum_solution() -> None:
     np.testing.assert_allclose(result["T"] + result["R"] + result["A"], [1.0])
 
 
+@pytest.mark.parametrize("polarization", ["s", "p"])
+@pytest.mark.parametrize("incidence", [0.0, 35.0, 60.0])
+@pytest.mark.parametrize("loss", [0.0, 0.02])
+def test_mixed_stack_matches_bidirectional_film_solution(
+    polarization: str, incidence: float, loss: float
+) -> None:
+    n = np.array([1.0, 2.0 + 0.03j, 1.5 + 1j * loss, 1.2])
+    cos_q = np.sqrt(1 - (np.sin(np.deg2rad(incidence)) / n) ** 2)
+    flux = np.real(n * (cos_q if polarization == "s" else np.conj(cos_q)))
+
+    def interface(i: int, j: int) -> tuple[complex, complex]:
+        if polarization == "s":
+            a, b = n[i] * cos_q[i], n[j] * cos_q[j]
+        else:
+            a, b = n[j] * cos_q[i], n[i] * cos_q[j]
+        return 2 * n[i] * cos_q[i] / (a + b), (a - b) / (a + b)
+
+    phase = np.exp(2j * np.pi * 1000.0 * n[1] * cos_q[1] * 0.00015)
+
+    def film(i: int, j: int) -> tuple[float, float]:
+        t_i, r_i = interface(i, 1)
+        t_j, r_j = interface(1, j)
+        norm = 1 + r_i * r_j * phase ** 2
+        t = t_i * t_j * phase / norm
+        r = (r_i + r_j * phase ** 2) / norm
+        return flux[j] / flux[i] * abs(t) ** 2, abs(r) ** 2
+
+    t_f, r_f = film(0, 2)
+    t_b, r_b = film(2, 0)
+    t_exit, r_exit = interface(2, 3)
+    t_exit = flux[3] / flux[2] * abs(t_exit) ** 2
+    r_exit = abs(r_exit) ** 2
+    attenuation = np.exp(-4 * np.pi * 1000.0 * (n[2] * cos_q[2]).imag * 0.002)
+    norm = 1 - r_b * r_exit * attenuation ** 2
+    expected_t = t_f * attenuation * t_exit / norm
+    expected_r = r_f + t_f * t_b * r_exit * attenuation ** 2 / norm
+
+    result = run_stack([
+        layer(n[0].real),
+        layer(n[1].real, n[1].imag, 0.00015, True),
+        layer(n[2].real, n[2].imag, 0.002, False),
+        layer(n[3].real),
+    ], incidence=incidence, polarization=polarization)
+    np.testing.assert_allclose(result["T"], [expected_t], atol=1e-12)
+    np.testing.assert_allclose(result["R"], [expected_r], atol=1e-12)
+    np.testing.assert_allclose(result["A"], [1 - expected_t - expected_r], atol=1e-12)
+
+
 def test_repeated_calls_are_stable_and_do_not_mutate_input_layers() -> None:
     layers = [
         constant_layer(1.0),
@@ -170,7 +218,7 @@ def test_repeated_calls_are_stable_and_do_not_mutate_input_layers() -> None:
             np.testing.assert_array_equal(before[key], after[key])
 
 
-def test_smatrix_component_calculation_does_not_mutate_input_layers() -> None:
+def test_coherent_calculation_does_not_mutate_input_layers() -> None:
     layers = [
         constant_layer(1.0, coherent=True),
         constant_layer(1.5, coherent=True),
@@ -179,9 +227,71 @@ def test_smatrix_component_calculation_does_not_mutate_input_layers() -> None:
     config = make_config(np.array([1000.0], dtype=float), 0.0, "s")
     smmo = SMMO(layers, config)
 
-    smmo.get_smatrix_components(layers)
+    smmo()
 
     assert len(layers) == original_length
+
+
+@pytest.mark.parametrize("update", ["entrance", "config", "spectrum"])
+def test_reused_solver_reads_current_inputs(update: str) -> None:
+    layers = [constant_layer(1.0), constant_layer(1.5)]
+    cfg = make_config(np.array([1000.0]), 40.0, "s")
+    solver = SMMO(layers, cfg)
+    solver()
+
+    if update == "entrance":
+        layers[0]["n"][:] = 1.3
+    elif update == "config":
+        cfg["theta"] = 20.0
+        cfg["pol"] = "p"
+    else:
+        cfg["w"] = np.array([600.0, 1000.0, 1800.0])
+        for item in layers:
+            item["n"] = np.full(3, item["n"][0])
+            item["k"] = np.zeros(3)
+
+    actual = solver()
+    expected = SMMO(layers, cfg)()
+    for key in expected:
+        np.testing.assert_allclose(actual[key], expected[key], atol=1e-12)
+
+
+@pytest.mark.parametrize("key", ["w", "n", "k", "thickness"])
+@pytest.mark.parametrize("value", [np.nan, np.inf, -np.inf, 1 + 1j])
+def test_nonfinite_or_complex_inputs_are_rejected(key: str, value: complex) -> None:
+    layers = [constant_layer(1.0), constant_layer(1.5)]
+    cfg = make_config(np.array([1000.0]), 0.0, "s")
+    if key == "w":
+        cfg[key] = np.array([value])
+    elif key == "thickness":
+        layers[1][key] = value
+    else:
+        layers[1][key] = np.array([value])
+    with pytest.raises(ValueError, match="finite"):
+        SMMO(layers, cfg)
+
+
+@pytest.mark.parametrize("thickness", [-0.1, np.array([0.1, 0.2])])
+def test_invalid_thickness_is_rejected(thickness: float) -> None:
+    with pytest.raises(ValueError, match="thickness"):
+        run_stack([constant_layer(1.0), constant_layer(1.5, thickness=thickness)])
+
+
+@pytest.mark.parametrize("update", ["shape", "finite", "polarization", "layer_count"])
+def test_mutated_inputs_are_revalidated(update: str) -> None:
+    layers = [constant_layer(1.0), constant_layer(1.5)]
+    cfg = make_config(np.array([1000.0]), 0.0, "s")
+    solver = SMMO(layers, cfg)
+    if update == "shape":
+        layers[1]["n"] = np.ones(2)
+    elif update == "finite":
+        layers[1]["k"][:] = np.nan
+    elif update == "polarization":
+        cfg["pol"] = "x"
+    else:
+        layers.pop()
+    with pytest.raises(ValueError):
+        solver()
 
 
 def test_invalid_polarization_is_rejected() -> None:

@@ -124,7 +124,11 @@ The optical index used by the code is `N = n + i k`. If `k` is zero, the materia
 
 `wavenumber`, `n`, and `k` must be nonempty one-dimensional arrays with the same shape. Constant materials can be written with `np.full_like(w, value)` and `np.zeros_like(w)`.
 
-`SMMO` raises `ValueError` for mismatched spectral shapes, fewer than two layers, an incidence outside `0 <= incidence < 90`, or a polarization other than `"s"` or `"p"`. Validation also runs under `python -O`.
+`wavenumber`, `n`, and `k` must contain finite real values. Thickness must be a finite, nonnegative real scalar.
+
+`SMMO` raises `ValueError` for invalid numeric inputs, mismatched spectral shapes, fewer than two layers, an incidence outside `0 <= incidence < 90`, or a polarization other than `"s"` or `"p"`. Validation also runs under `python -O`.
+
+The solver keeps references to the supplied layers and configuration and reads their current values on every call. You can update them between calls, for example while fitting a spectrum; each call validates the updated inputs. The solver does not modify your inputs.
 
 ## Coherent vs Incoherent Layers
 
@@ -236,9 +240,15 @@ Run the executable examples with:
 python tests/test_examples.py
 ```
 
-The suite checks Fresnel interfaces, coherent and incoherent films, mixed stacks, total internal reflection, critical-angle propagation, opaque layers, input validation, and repeated calls without input mutation.
+The suite checks Fresnel interfaces, coherent and incoherent films, mixed stacks, total internal reflection, critical-angle propagation, opaque layers, input validation, and repeated calls with updated inputs and without input mutation.
 
-The public API is exported from `smmo/__init__.py`. `smmo/data.py` owns the configuration and layer dictionaries. `smmo/smatrix.py` owns validation and calculation: `SMMO.__call__` groups coherent and incoherent blocks and combines their power coefficients; `get_smatrix_components` computes coherent amplitudes. Both paths use the same block composition in `_cascade`.
+The public API is `SMMO`, `make_config`, and `make_layer`, exported from `smmo/__init__.py`.
+
+- `smmo/data.py` defines and validates the configuration and layer dictionaries.
+- `smmo/smatrix.py` orchestrates a calculation: `SMMO._blocks` yields coherent runs and individual incoherent layers, and `SMMO.__call__` combines their power coefficients into `T`, `R`, and `A`.
+- `smmo/coherent.py` owns the optical block calculation and flux conversion. `power_coefficients` obtains forward and backward power from a single amplitude calculation. Both amplitude and power composition use `cascade`, with the same coefficient order: forward transmission, forward reflection, backward transmission, backward reflection.
+
+The calculation helpers are internal implementation details; use the three public exports for application code.
 
 ## Citation
 
